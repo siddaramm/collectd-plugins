@@ -16,6 +16,7 @@ from utils import *
 from buildData import *
 from constants import *
 from utilities import *
+import redis
 
 class Oozie:
     def __init__(self):
@@ -59,6 +60,34 @@ class Oozie:
                 self.timeline_server = children.values[0]
             elif children.key == TIMELINE_PORT:
                 self.timeline_port = children.values[0]
+
+    def get_redis_conn(self):
+        try:
+            r = redis.Redis(host='localhost', port=6379, password=None)
+            return r
+        except:
+            collectd.error("Plugin Oozie: Unable to connect redis")
+            return None
+
+    def read_from_redis(self):
+        r = self.get_redis_conn()
+        if not r:
+            return None
+        if not r.get("workflows"):
+            r.set("workflows", json.dumps({"workflows": []}))
+        return json.loads(r.get("workflows"))
+
+    def write_to_redis(self, workflow, index=-1):
+        workflows_data = self.read_from_redis()
+        if not workflows_data:
+            return
+        if index == -1:
+            workflows_data["workflows"].append(workflow)
+        else:
+            workflows_data["workflows"][index] = workflow
+        r = self.get_redis_conn()
+        r.set("workflows", json.dumps(workflows_data))
+
 
     def prepare_workflow(self, workflow):
         """Function to convert workflow details """
@@ -127,36 +156,19 @@ class Oozie:
                 return False
         return True
 
-    def read_json(self):
-        """Function to read workflow details from json file"""
-        with open("/opt/collectd/plugins/oozieworkflows.json", "r") as workflow_file:
-            data = json.loads(workflow_file.read())
-        if 'workflows' not in data:
-            data['workflows'] = []
-        workflow_file.close()
-        return data
-
-    def write_json(self, workflow):
-        """Function to workflow details to json file"""
-        data = self.read_json()
-        with open("/opt/collectd/plugins/oozieworkflows.json", "w") as workflow_file:
-            data['workflows'].append(workflow)
-            json.dump(data, workflow_file)
-        workflow_file.close()
 
     def change_workflow_status(self, workflow):
         """Function to change status of workflow in json file"""
-        workflows = self.read_json()
+        workflows = self.read_from_redis()
+        if not workflows:
+            return
         index = -1
         for i in range(0, len(workflows['workflows'])):
             if workflows['workflows'][i]['wfId'] == workflow['wfId']:
                 index = i
                 break
         if index != -1:
-            workflows['workflows'][i] = workflow
-            with open("/opt/collectd/plugins/oozieworkflows.json", "w") as workflow_file:
-                json.dump(workflows, workflow_file)
-            workflow_file.close()
+            self.write_to_redis(workflow, i)
 
 
     def processYarnJob(self, yarnjobid, oozieworkflowid, oozieworkflowname, \
@@ -303,13 +315,17 @@ class Oozie:
             res_json = res_json.json()
         if len(res_json['workflows']) == 0:
             return
-        data = self.read_json()
+        data = self.read_from_redis()
+        if not data:
+            return
         for workflow in res_json['workflows']:
             worklow_data = self.prepare_workflow(workflow)
             if not self.is_latest_oozie_job(data, worklow_data):
                 continue
-            self.write_json(worklow_data)
-        res_data = self.read_json()
+            self.write_to_redis(worklow_data)
+        res_data = self.read_from_redis()
+        if not res_data:
+            return
         res_data = [workflow for workflow in res_data['workflows'] \
                     if workflow['workflowMonitorStatus'] != 'processed']
         if not res_data:
