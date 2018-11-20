@@ -295,6 +295,13 @@ RESOURCE_MANAGER_PORT = 'resource_manager_port'
 TIMELINE_SERVER = 'timeline_server'
 TIMELINE_PORT = 'timeline_port'
 
+# namenode plugin constants
+NAMENODE = "namenode_host"
+NAMENODE_PORT = "namenode_port"
+ # yarn_stat plugin constants
+YARN_NODE = "yarn_node"
+CLUSTER = "cluster"
+
 # ESA constants
 class ESA(object):
     HOST_CONFIG_FILE = '/opt/esa_conf.json'
