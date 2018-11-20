@@ -4,21 +4,22 @@
 import operator
 import signal # pylint: disable=unused-import
 import time
-from datetime import datetime
+from datetime import datetime # pylint: disable=W
 import json
 from copy import deepcopy
 from multiprocessing.dummy import Pool as ThreadPool
 import requests
 import collectd
-from metrics import *
-from rest_api import *
-from utils import *
-from buildData import *
-from constants import *
-from utilities import *
 import redis
+from metrics import * # pylint: disable=W
+from rest_api import * # pylint: disable=W
+from utils import * # pylint: disable=W
+from buildData import * # pylint: disable=W
+from constants import * # pylint: disable=W
+from utilities import * # pylint: disable=W
 
 class Oozie:
+    """Plugin object will be created only once and collects oozie statistics info every interval."""
     def __init__(self):
         """Initializes interval, oozie server, Job history and Timeline server details"""
         self.ooziehost = None
@@ -62,22 +63,25 @@ class Oozie:
                 self.timeline_port = children.values[0]
 
     def get_redis_conn(self):
+        """Function to connect redis database"""
         try:
-            r = redis.Redis(host='localhost', port=6379, password=None)
-            return r
+            redis_obj = redis.Redis(host='localhost', port=6379, password=None)
+            return redis_obj
         except:
-            collectd.error("Plugin Oozie: Unable to connect redis")
+            collectd.error("Plugin Oozie: Unable to connect redis") # pylint: disable=no-member
             return None
 
     def read_from_redis(self):
-        r = self.get_redis_conn()
-        if not r:
+        """Function to read data from redis database"""
+        redis_obj = self.get_redis_conn()
+        if not redis_obj:
             return None
-        if not r.get("workflows"):
-            r.set("workflows", json.dumps({"workflows": []}))
-        return json.loads(r.get("workflows"))
+        if not redis_obj.get("workflows"):
+            redis_obj.set("workflows", json.dumps({"workflows": []}))
+        return json.loads(redis_obj.get("workflows"))
 
     def write_to_redis(self, workflow, index=-1):
+        """Function to write data into redis"""
         workflows_data = self.read_from_redis()
         if not workflows_data:
             return
@@ -85,8 +89,8 @@ class Oozie:
             workflows_data["workflows"].append(workflow)
         else:
             workflows_data["workflows"][index] = workflow
-        r = self.get_redis_conn()
-        r.set("workflows", json.dumps(workflows_data))
+        redis_obj = self.get_redis_conn()
+        redis_obj.set("workflows", json.dumps(workflows_data))
 
 
     def prepare_workflow(self, workflow):
@@ -149,13 +153,13 @@ class Oozie:
         metrics = metrics_update
         return metrics
 
+
     def is_latest_oozie_job(self, lastjobdetails, latestjobdetails):
         """Function to check the Jobi details is already in flatMap file"""
         for workflow in lastjobdetails['workflows']:
             if workflow['wfId'] == latestjobdetails['wfId']:
                 return False
         return True
-
 
     def change_workflow_status(self, workflow):
         """Function to change status of workflow in json file"""
@@ -168,10 +172,10 @@ class Oozie:
                 index = i
                 break
         if index != -1:
-            self.write_to_redis(workflow, i)
+            self.write_to_redis(workflow, index)
 
 
-    def processYarnJob(self, yarnjobid, oozieworkflowid, oozieworkflowname, \
+    def processyarnjob(self, yarnjobid, oozieworkflowid, oozieworkflowname, \
                        oozieworkflowactionid, oozieworkflowactionname):
         """Function to get Job details fro yarnjobid"""
         collectd.debug("Plugin Oozie: Processing yarnjobid %s of workflow %s workflowId: %s ActionId:%s ActionName:%s" \
@@ -267,7 +271,7 @@ class Oozie:
                                                  workflow['wfName'])
                             actiondata['action'] = workflowActionData
                             childindex = childindex + 1
-                        yarnJobInfo = self.processYarnJob(externalChildID, workflow['wfId'], \
+                        yarnJobInfo = self.processyarnjob(externalChildID, workflow['wfId'], \
                                       workflow['wfName'], action['id'], action['name'])
                         if yarnJobInfo:
                      #       self.results.extend(yarnJobInfo)
@@ -279,7 +283,7 @@ class Oozie:
                                          action['externalId'], workflow['wfId'], workflow['wfName'])
                     actiondata['action'] = workflowActionData
                     if action['externalId'] and action['externalId'] != '-':
-                        yarnJobInfo = self.processYarnJob(action['externalId'], workflow['wfId'], \
+                        yarnJobInfo = self.processyarnjob(action['externalId'], workflow['wfId'], \
                                       workflow['wfName'], action['id'], action['name'])
                         if yarnJobInfo:
                             actiondata['yarnJobs'].append(yarnJobInfo)
@@ -313,7 +317,7 @@ class Oozie:
             return
         else:
             res_json = res_json.json()
-        if len(res_json['workflows']) == 0:
+        if not res_json['workflows']:
             return
         data = self.read_from_redis()
         if not data:
