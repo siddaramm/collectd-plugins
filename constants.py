@@ -298,11 +298,8 @@ TIMELINE_PORT = 'timeline_port'
 # namenode plugin constants
 NAMENODE = "namenode_host"
 NAMENODE_PORT = "namenode_port"
-
-
-# yarn_stat plugin constants
+ # yarn_stat plugin constants
 YARN_NODE = "yarn_node"
-
 CLUSTER = "cluster"
 
 # ESA constants

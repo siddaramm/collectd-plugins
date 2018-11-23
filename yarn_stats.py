@@ -1,13 +1,14 @@
-from http_request import *
-import json
 import time
-import collectd
-from constants import *
-from utils import *
 from copy import deepcopy
+import collectd
+from constants import * # pylint: disable=W
+from utils import * # pylint: disable=W
+from http_request import * # pylint: disable=W
 
 class YarnStats:
     def __init__(self):
+        """Plugin object will be created only once and \
+           collects yarn statistics info every interval."""
         self.resource_manager = None
         self.yarn_node = None
 
@@ -22,12 +23,13 @@ class YarnStats:
                 self.resource_manager = children.values[0]
 
     def remove_dot(self, doc, field):
+        """Function to remove dots in the field"""
         new_field = '_' + field.split('.')[0] + '_' + field.split('.')[1].lower()
         doc[new_field] = doc.pop(field)
 
 
     def get_yarn_stats(self):
-
+        """Function to get yarn statistics"""
         location = self.yarn_node
         port = self.resource_manager
         path = "/jmx?qry=Hadoop:service=ResourceManager,name={}".format('JvmMetrics')
@@ -35,15 +37,15 @@ class YarnStats:
         if json_yarn_node is not None:
             json_yarn_node = json_yarn_node['beans']
             json_yarn_node[0]['time'] = int(time.time())
-#            json_yarn_node[0]['_plugin'] = "yarn_stats"
             json_yarn_node[0]['_documentType'] = "yarnStats" + 'JvmMetrics'
-#            json_yarn_node[0]['_tag_appName'] = "hadoop"
         else:
             return []
         hostname = json_yarn_node[0]['tag.Hostname']
 
-        for a in ['RpcActivityForPort8025', 'RpcDetailedActivityForPort8050', 'QueueMetrics,q0=root', 'ClusterMetrics']:
-            path = "/jmx?qry=Hadoop:service=ResourceManager,name={}".format(a)
+        for name in ['RpcActivityForPort8031', 'RpcActivityForPort8032', \
+                     'RpcActivityForPort8033', 'RpcActivityForPort8025', \
+                     'RpcDetailedActivityForPort8050', 'QueueMetrics,q0=root', 'ClusterMetrics']:
+            path = "/jmx?qry=Hadoop:service=ResourceManager,name={}".format(name)
             json_doc = http_request(location, port, path, scheme='http')
             if json_doc is None:
                 continue
@@ -51,20 +53,20 @@ class YarnStats:
                 if json_doc['beans'] == []:
                     continue
                 doc = json_doc['beans'][0]
-            except KeyError as e:
-                collectd.error("Plugin yarn_stats: Error ", e)
+            except KeyError as error:
+                collectd.error("Plugin yarn_stats: Error ", error)
                 return None
             if 'tag.Hostname' not in doc:
                 doc['tag.Hostname'] = hostname
             doc['_tag_Hostname'] = doc.pop('tag.Hostname')
             doc['time'] = int(time.time())
-#            doc['_plugin'] = "yarn"
-            doc['_documentType'] = "yarnStats" + a.split(',')[0]
-#            doc['_tag_appName'] = "hadoop"
-
-            for f in doc.keys():
-                if '.' in f:
-                    self.remove_dot(doc, f)
+            if 'Rpc' in name:
+                doc['_documentType'] = "yarnStats" + 'RpcActivity'
+            else:
+                doc['_documentType'] = "yarnStats" + name.split(',')[0]
+            for field in doc.keys():
+                if '.' in field:
+                    self.remove_dot(doc, field)
 
             json_yarn_node.append(doc)
         return json_yarn_node
