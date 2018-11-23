@@ -1,10 +1,9 @@
-from http_request import *
-import json
 import time
-import collectd
-from constants import *
-from utils import *
 from copy import deepcopy
+import collectd
+from constants import * # pylint: disable=W
+from utils import * # pylint: disable=W
+from http_request import * # pylint: disable=W
 
 
 class ContainrsStats:
@@ -23,7 +22,7 @@ class ContainrsStats:
                 self.resource_manager_port = children.values[0]
 
     def get_containers_node(self):
-
+        """Function to get collection of resources, each of which represents a node"""
         location = self.cluster
         port = self.resource_manager_port
         path = '/ws/v1/cluster/nodes'
@@ -31,18 +30,18 @@ class ContainrsStats:
         if nodes_json is None:
             return None
 
-        #collectd.debug("Node JSON:", json.dumps(nodes_json))
+        if not nodes_json["nodes"]:
+            return None
         nodes_list = nodes_json["nodes"]["node"]
         for node in nodes_list:
             node['time'] = int(round(time.time()))
-#            node['_plugin'] = "yarn"
             node['_documentType'] = "containerStats"
-#            node['_tag_appName'] = "hadoop"
 
         return nodes_list
 
 
     def get_cluster_metrics(self):
+        """Function to get overall metrics about the cluster"""
         location = self.cluster
         port = self.resource_manager_port
         path = '/ws/v1/cluster/metrics'
@@ -51,11 +50,7 @@ class ContainrsStats:
             return None
 
         metrics_json['time'] = int(round(time.time()))
-#        metrics_json['_plugin'] = "containers"
         metrics_json['_documentType'] = "clusterMetrics"
-#        metrics_json['_tag_appName'] = "hadoop"
-
-        #collectd.debug("Cluster metrics:", json.dumps(metrics_json))
         return metrics_json
 
     @staticmethod
