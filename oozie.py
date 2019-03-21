@@ -30,6 +30,7 @@ sys.path.append(path.dirname(path.abspath("/opt/collectd/plugins/sf-plugins-hado
 sys.path.append(path.dirname(path.abspath("/opt/collectd/plugins/sf-plugins-hadoop/Collectors/requirements.txt")))
 
 from configuration import *
+from redis_utils import *
 from processOzzieWorkflows import run_application, initialize_app
 from processElasticWorkflows import run_application as run_application_elastic
 from processElasticWorkflows import initialize_app as initialize_app_elastic
@@ -143,18 +144,7 @@ class Oozie:
             if res_json.json()["ServiceInfo"]["state"] != "INSTALLED" and res_json.json()["ServiceInfo"]["state"] != "STARTED":
                 collectd.error("%s is not running" %service)
                 return False
-        return True
-
-    def read_from_json(self, filename):
-        with open(filename) as json_file:
-            data = json.load(json_file)
-        json_file.close()
-        return data
-
-    def write_to_json(self, filename, data):
-        with open(filename, 'w') as json_file:
-            data = json.dump(data, json_file)
-        json_file.close()    
+        return True    
 
     def read_config(self, cfg):
         """Initializes variables from conf files."""
@@ -220,9 +210,8 @@ class Oozie:
             if job_history_host and timeline_host and oozie_host and self.hdfs_hosts:
                 self.update_config_file(use_rest_api, jobhistory_copy_dir)
                 self.is_config_updated = 1
-                if os.path.isfile("/var/jhist/oozie_wf_status.json"):
-                    wf_status = self.read_from_json("/var/jhist/oozie_wf_status.json")
-                if not os.path.isfile("/var/jhist/oozie_wf_status.json") or not wf_status["update_old_wf_status"]:
+                redis_data = read_from_redis("update_old_wf_status")
+                if not redis_data:
                     wfs = search_workflows_in_elastic()
                     for wf in wfs["hits"]["hits"]:
                         wf["_source"]["workflowMonitorStatus"] = "processed"
@@ -230,8 +219,7 @@ class Oozie:
                         result = update_document_in_elastic(doc_data, wf["_id"])
                         while len(wfs["hits"]["hits"])>0 and result:
                             wfs = search_workflows_in_elastic()
-                    wf_status["update_old_wf_status"] = 1                    
-                    self.write_to_json("/var/jhist/oozie_wf_status.json", wf_status)
+                    write_to_redis("update_old_wf_status", 1)                    
                 initialize_app()
                 initialize_app_elastic()
         else:
