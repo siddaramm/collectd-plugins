@@ -219,7 +219,7 @@ class Oozie:
                         result = update_document_in_elastic(doc_data, wf["_id"])
                         while len(wfs["hits"]["hits"])>0 and result:
                             wfs = search_workflows_in_elastic()
-                    write_to_redis("update_old_wf_status", 1)                    
+                    write_to_redis("update_old_wf_status", {"update": 1})                    
                 initialize_app()
                 initialize_app_elastic()
         else:
