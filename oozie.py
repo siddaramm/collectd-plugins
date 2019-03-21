@@ -145,6 +145,17 @@ class Oozie:
                 return False
         return True
 
+    def read_from_json(self, filename):
+        with open(filename) as json_file:
+            data = json.load(json_file)
+        json_file.close()
+        return data
+
+    def write_to_json(self, filename, data):
+        with open(filename, 'w') as json_file:
+            data = json.dump(data, json_file)
+        json_file.close()    
+
     def read_config(self, cfg):
         """Initializes variables from conf files."""
         for children in cfg.children:
@@ -209,6 +220,18 @@ class Oozie:
             if job_history_host and timeline_host and oozie_host and self.hdfs_hosts:
                 self.update_config_file(use_rest_api, jobhistory_copy_dir)
                 self.is_config_updated = 1
+                if os.path.isfile("/var/jhist/oozie_wf_status.json"):
+                    wf_status = self.read_from_json("/var/jhist/oozie_wf_status.json")
+                if not os.path.isfile("/var/jhist/oozie_wf_status.json") or not wf_status["update_old_wf_status"]:
+                    wfs = search_workflows_in_elastic()
+                    for wf in wfs["hits"]["hits"]:
+                        wf["_source"]["workflowMonitorStatus"] = "processed"
+                        doc_data = {"doc": wf["_source"]}
+                        result = update_document_in_elastic(doc_data, wf["_id"])
+                        while len(wfs["hits"]["hits"])>0 and result:
+                            wfs = search_workflows_in_elastic()
+                    wf_status["update_old_wf_status"] = 1                    
+                    self.write_to_json("/var/jhist/oozie_wf_status.json", wf_status)
                 initialize_app()
                 initialize_app_elastic()
         else:
