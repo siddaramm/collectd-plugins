@@ -210,16 +210,20 @@ class Oozie:
             if job_history_host and timeline_host and oozie_host and self.hdfs_hosts:
                 self.update_config_file(use_rest_api, jobhistory_copy_dir)
                 self.is_config_updated = 1
-                redis_data = read_from_redis("update_old_wf_status")
-                if not redis_data:
+                redis_data = read_from_redis(app_status['oozie-key'])
+                if not redis_data or not redis_data["lastProcessWorkflowId"]:
+                    collectd.info("Redis data is %s" %redis_data)
                     wfs = search_workflows_in_elastic()
                     for wf in wfs["hits"]["hits"]:
                         wf["_source"]["workflowMonitorStatus"] = "processed"
                         doc_data = {"doc": wf["_source"]}
                         result = update_document_in_elastic(doc_data, wf["_id"])
+                        wait = 0
                         while len(wfs["hits"]["hits"])>0 and result:
                             wfs = search_workflows_in_elastic()
-                    write_to_redis("update_old_wf_status", {"update": 1})                    
+                            if wait >= 60:
+                                break
+                            wait += 1                 
                 initialize_app()
                 initialize_app_elastic()
         else:
