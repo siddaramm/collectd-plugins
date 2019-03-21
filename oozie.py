@@ -218,12 +218,7 @@ class Oozie:
                         wf["_source"]["workflowMonitorStatus"] = "processed"
                         doc_data = {"doc": wf["_source"]}
                         result = update_document_in_elastic(doc_data, wf["_id"])
-                        wait = 0
-                        while len(wfs["hits"]["hits"])>0 and result:
-                            wfs = search_workflows_in_elastic()
-                            if wait >= 60:
-                                break
-                            wait += 1                 
+                    time.sleep(1) #Elasticsearch requires default 1s to visible updated document                 
                 initialize_app()
                 initialize_app_elastic()
         else:
