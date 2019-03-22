@@ -214,11 +214,13 @@ class Oozie:
                 if not redis_data or not redis_data["lastProcessWorkflowId"]:
                     collectd.info("Redis data is %s" %redis_data)
                     wfs = search_workflows_in_elastic()
-                    for wf in wfs["hits"]["hits"]:
-                        wf["_source"]["workflowMonitorStatus"] = "processed"
-                        doc_data = {"doc": wf["_source"]}
-                        result = update_document_in_elastic(doc_data, wf["_id"])
-                    time.sleep(1) #Elasticsearch requires default 1s to visible updated document                 
+                    if wfs:
+                        for wf in wfs["hits"]["hits"]:
+                            wf["_source"]["workflowMonitorStatus"] = "processed"
+                            doc_data = {"doc": wf["_source"]}
+                            result = update_document_in_elastic(doc_data, wf["_i
+d"])
+                        time.sleep(1) #Elasticsearch requires default 1s to visible updated document                 
                 initialize_app()
                 initialize_app_elastic()
         else:
